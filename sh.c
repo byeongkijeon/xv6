@@ -82,25 +82,17 @@ runcmd(struct cmd *cmd)
   case '>':
 	rcmd = (struct redircmd*)cmd;
 	ecmd = (struct execcmd*)(rcmd->cmd);
-	if(0 <(fd = open(rcmd->file,O_CREAT|O_WRONLY,0644))){
-	//	for(int i = 1 ;ecmd->argv[i]!=NULL;i++){
-	//		char str2[2]=" ";
-	//		strcat(ecmd->argv[i],str2);	
-	//		write(fd,ecmd->argv[i],strlen(ecmd->argv[i]));
-	//		}
+	if(0 <(fd = open(rcmd->file,O_CREAT|O_WRONLY,0644))){ //fd가 0보다 크다면, 파일이 올바르게 열린 것 , 0644는 file의 소유자만 읽기/쓰기가 가능하며 그 외에는 읽기만 가능한 MODE.
+
 		stream = freopen(rcmd->file,"w",stdout);
-		runcmd(rcmd->cmd);
+		runcmd(rcmd->cmd); // 명령어가 parsing된 cmd를 ecmd로 간주하여 실행시킵니다. 
 		fclose(stream);
 		}
 	else {
-		stream = freopen(rcmd->file,"w",stdout);
-		runcmd(rcmd->cmd);
-		fclose(stream);
-		if(fd == -1)
 			fprintf(stderr,"file open error\n");
 		}
 	close(fd);
-	stream = NULL;
+	stream = NULL;	
 	break;
   case '<':
     rcmd = (struct redircmd*)cmd;
@@ -123,35 +115,24 @@ runcmd(struct cmd *cmd)
 	struct cmd * lcmd =(pcmd->left);
 	struct cmd * rcmd =(pcmd->right);
 	int fd[2];
-	if(pipe(fd)==-1){
+
+	if(pipe(fd)==-1){ //fd를 파이프로 만듭니다.
 		fprintf(stderr,"pipe error");
 		exit(1);
 	}
-	if((pid = fork())==-1){
-		fprintf(stderr,"fork error");
-		exit(1);
-	}
-	if(pid == 0){
-		close(1);
-		dup2(fd[1],1);
-	if(close(fd[0])==-1 || close(fd[1])==-1)
-		perror("close err");
-		runcmd(lcmd);
-		exit(0);
-	}
-	else if(pid==-1) perror("fork error");
+	pid = fork1(); //process를 fork합니다.
 
-	if(( pid = fork()) == -1){
-		perror("close err");
+	if(pid == 0){ //자식프로세스라면
+		dup2(fd[1],1); //표준출력을 닫고, pipe의 출력으로 출력한다.
+		close(fd[0]); //pipe의 입력을 닫는다 
+		runcmd(lcmd); //left cmd를 실행
 	}
-	if(pid==0){
-		close(0);
-		dup2(fd[0],0);
-		if(close(fd[0])==-1 || close(fd[1])==-1)
-			perror("close err");
-		runcmd(rcmd);
+
+	else{ //부모프로세스라면
+		dup2(fd[0],0); //표준입력을 닫고, pipe의 입력으로 입력받는다.
+		close(fd[1]); //pipe의 출력을 닫는다
+		runcmd(rcmd);//right cmd를 실행
 	}
-	else if(pid==-1) perror("fork error");
 		
 	break;
   }    
